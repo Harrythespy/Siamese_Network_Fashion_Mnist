@@ -4,7 +4,6 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-
 def saveDataset():
     '''
       1. Download the dataset from Fashion Mnist of keras datasets 
@@ -60,10 +59,6 @@ def saveDataset():
     
     class_names = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
                'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
-  
-    # Normalize data dimensions so that they are of approximately the same scale
-    train_imgs = train_imgs / 255.
-    test_imgs = test_imgs / 255.
     
     plt.figure(figsize=(10,10))
     for i in range(25):
@@ -92,14 +87,37 @@ def loadDataset():
     print('x_test : ', test_imgs.shape, test_imgs.dtype)
     print('y_test : ', test_labels.shape, test_labels.dtype)
     
-    train_imgs, validation_imgs = np.split(train_imgs, 2)
-    train_labels, validation_labels = np.split(train_labels, 2)
+    # train_imgs, validation_imgs = np.split(train_imgs, 2)
+    # train_labels, validation_labels = np.split(train_labels, 2)
+
+    img_rows, img_cols = train_imgs.shape[1:3]
+    num_classes = 10
+    
+    # Reshape the input arrays to 4D (batch_size, rows, columns, channels)
+    train_imgs = train_imgs.reshape(train_imgs.shape[0], img_rows, img_cols, 1)
+    test_imgs = test_imgs.reshape(test_imgs.shape[0], img_rows, img_cols, 1)
+    input_shape = (img_rows, img_cols, 1)
+    batch_size = 128
+    epochs = 10
+
+    # Normalize data dimensions so that they are of approximately the same scale
+    train_imgs = train_imgs.astype('float32')
+    test_imgs = test_imgs.astype('float32')
+    train_imgs /= 255.
+    test_imgs /= 255.
+
+    print('train_imgs shape:', train_imgs.shape)
+    print(train_imgs.shape[0], 'train samples')
+    print(test_imgs.shape[0], 'test samples')
+
+    # convert class vectors to binary class matrices (aka "sparse coding" or "one hot")
+    train_labels = keras.utils.to_categorical(train_labels, num_classes)
+    test_labels = keras.utils.to_categorical(test_labels, num_classes)
 
     model = keras.Sequential()
-    epochs = 10
     
     # Must define the input shape in the first layer of the neural network
-    model.add(keras.layers.Conv2D(filters=64, kernel_size=2, padding='same', activation='relu', input_shape=(28, 28, 1)))
+    model.add(keras.layers.Conv2D(filters=64, kernel_size=2, padding='same', activation='relu', input_shape=input_shape))
     model.add(keras.layers.MaxPooling2D(pool_size=2))
     model.add(keras.layers.Dropout(0.3))
     
@@ -119,7 +137,7 @@ def loadDataset():
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
     
     # Train the model
-    model.fit(train_imgs, train_labels, batch_size=64, epochs=epochs, validation_data=(validation_imgs, validation_labels))
+    model.fit(train_imgs, train_labels, batch_size=batch_size, epochs=epochs, validation_data=(test_imgs, test_labels))
     
     score = model.evaluate(test_imgs, test_labels)
     print('\n', 'Test accuracy:', score[1])
