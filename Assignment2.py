@@ -10,6 +10,11 @@ import random
 class_names = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
               'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
 num_classes = len(class_names)
+# Set 1 is the images with labels for classes "top", "trouser", "pullover", "coat", "sandal", "andke boot"
+labels1 = [0, 1, 2, 4, 5, 9]
+
+# Set 2 is the images with labels for classes "dress", "sneaker", "bag", "shirt"
+labels2 = [3, 6, 7, 8]
 
 def Save_Dataset():
   '''
@@ -29,11 +34,7 @@ def Save_Dataset():
   print(labels.shape)
   
   #split training dataset into training and validating
-  # Set 1 is the images with labels for classes "top", "trouser", "pullover", "coat", "sandal", "andke boot"
-  labels1 = [0, 1, 2, 4, 5, 9]
   
-  # Set 2 is the images with labels for classes "dress", "sneaker", "bag", "shirt"
-  labels2 = [3, 6, 7, 8]
   
   # Create new dataset in order to store different classes of images and labels
   set1_imgs = []
@@ -122,11 +123,11 @@ def Load_Dataset():
   # print('Testing Labels:', test_labels)
   
   # create training+test positive and negative pairs
-  digit_indices = [np.where(train_labels == i)[0] for i in range(num_classes)]
-  tr_pairs, tr_y = create_pairs(train_imgs, digit_indices)
+  digit_indices = [np.where(train_labels == i)[0] for i in labels1]
+  tr_pairs, tr_y = create_pairs(train_imgs, digit_indices, labels1)
 
-  digit_indices = [np.where(test_labels == i)[0] for i in range(num_classes)]
-  te_pairs, te_y = create_pairs(train_labels, digit_indices)
+  digit_indices = [np.where(test_labels == i)[0] for i in labels1]
+  te_pairs, te_y = create_pairs(test_imgs, digit_indices, labels1)
 
   base_network = Create_Base_Network(input_shape)
   input_a = keras.Input(shape=input_shape)
@@ -141,7 +142,7 @@ def Load_Dataset():
   # Compile the model
   model.compile(loss=contrastive_loss, optimizer='rmsprop', metrics=['accuracy'])
   # Train the model
-  model.fit([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y, batch_size=batch_size, epochs=epochs, validation_data=([te_pairs[:, 0], te_pairs[:, 1]], te_y))
+  model.fit([tr_pairs[:, 0, :,:,:], tr_pairs[:, 1]], tr_y, batch_size=batch_size, epochs=epochs, validation_data=([te_pairs[:, 0,:,:,:], te_pairs[:, 1]], te_y))
   # model.fit([train_imgs[:, 0], train_imgs[:, 1]], train_labels, batch_size=batch_size, epochs=epochs, validation_data=([test_imgs[:, 0], test_imgs[:, 1]], test_labels))
   score = model.evaluate(test_imgs, test_labels)
   print('\n', 'Test accuracy:', score[1])
@@ -164,23 +165,23 @@ def contrastive_loss(y_true, y_pred):
     margin_square = k.square(k.maximum(margin - y_pred, 0))
     return k.mean(y_true * square_pred + (1 - y_true) * margin_square)
 
-def create_pairs(x, digit_indices):
+def create_pairs(x, digit_indices, dataset):
   '''Positive and negative pair creation.
   Alternates between positive and negative pairs.
   '''
   pairs = []
   labels = []
-  n = min([len(digit_indices[d]) for d in range(num_classes)]) - 1
-  
-  for d in range(num_classes):
+  n = min([len(digit_indices[d]) for d in range(len(dataset))]) - 1
+
+  for d in range(len(dataset)):
       for i in range(n):
           z1, z2 = digit_indices[d][i], digit_indices[d][i + 1]
           pairs += [[x[z1], x[z2]]]
-          inc = random.randrange(1, num_classes)
-          dn = (d + inc) % num_classes
+          inc = random.randrange(1, len(dataset))
+          dn = (d + inc) % len(dataset)
           z1, z2 = digit_indices[d][i], digit_indices[dn][i]
           pairs += [[x[z1], x[z2]]]
-          labels += [1, 0]
+          labels += [0, 1]
   return np.array(pairs), np.array(labels)
 
 def Create_Base_Network(input_shape):
