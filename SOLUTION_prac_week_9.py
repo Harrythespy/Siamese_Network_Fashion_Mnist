@@ -127,6 +127,8 @@ def ex3():
         positive = y_pred[1]
         negative = y_pred[2]
     
+        print('anchor:', anchor)
+
         # distance between the anchor and the positive
         pos_dist = tf.reduce_sum(tf.square(anchor-positive),axis=1)
     
@@ -171,5 +173,5 @@ def ex3():
 
 
 if __name__ == '__main__':
-    ex1_2()
-#    ex3()    
+    # ex1_2()
+   ex3()    
