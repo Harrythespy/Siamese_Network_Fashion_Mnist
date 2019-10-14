@@ -143,7 +143,7 @@ def ex3():
     
     #Test implementation of triplet loss function 
     num_data = 10
-    feat_dim = 6
+    feat_dim = 3
     margin = 0.2
     
     embeddings = [np.random.rand(num_data, feat_dim).astype(np.float32),

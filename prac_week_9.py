@@ -131,9 +131,7 @@ def ex3():
     
         # compute loss
         basic_loss = margin + pos_dist - neg_dist
-        loss = tf.maximum(basic_loss,0.0)
-        loss = tf.reduce_mean(loss)     
-        return loss
+        return tf.reduce_mean(tf.maximum(basic_loss,0.0))
     
     #Test implementation of triplet loss function 
     num_data = 10
