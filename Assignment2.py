@@ -11,10 +11,9 @@ def Load_Dataset():
     1. Download the dataset from Fashion Mnist of keras datasets 
     2. Gather the images and labels of both training and testing together
     3. Distribute them with the given conditions (80%-20%) and remove unnecessary classes
-    4. Normalize data and reshape the 
-    2. Divide training dataset into train and validation
-    3. Pre-process the dataset
-    4. Build a model adn input two datasets
+    4. Normalize and reshape dataset
+    5. Divide training dataset into train and validation for training model
+    6. Use three dataset for testing
   '''
   
   def euclidean_distance(vects):
@@ -34,21 +33,19 @@ def Load_Dataset():
   
   def contrastive_loss(y_true, y_pred):
       '''
-        Arguments:
-        y_true -- true labels, required when you define a loss in Keras.
-        y_pred -- python list containing three objects:
-                anchor -- the encodings for the anchor data
-                positive -- the encodings for the positive data (similar to anchor)
-                negative -- the encodings for the negative data (different from anchor)
-        Returns:
-        loss -- real number, value of the loss
+      Arguments:
+      y_true -- true labels, required when you define a loss in Keras.
+      y_pred -- python list containing three objects:
+              anchor -- the encodings for the anchor data
+              positive -- the encodings for the positive data (similar to anchor)
+              negative -- the encodings for the negative data (different from anchor)
+      Returns:
+      loss -- real number, value of the loss
       '''
       margin = 0.8
-      square_pred = k.square(1 - y_pred)
+      square_pred = k.square(y_pred)
       margin_square = k.square(k.maximum(margin - y_pred, 0))
-      loss_zero = tf.cast(k.equal(y_true, 0), dtype='float32') * k.square(y_pred)
-      loss_one = tf.cast(k.equal(y_true, 1), dtype='float32') * k.square(k.maximum(margin - y_pred, 0))
-      return k.mean(loss_zero + loss_one)
+      return k.mean((1 - y_true) * square_pred + y_true * margin_square)
 
 
   def create_pairs(x, digit_indices, dataset):
@@ -81,13 +78,13 @@ def Load_Dataset():
     ip = keras.Input(shape=input_shape)
 
     # The 'relu' parameter is used to replace all negative values by zero, relu is abbreviated as Rectified Linear Unit
-    layer1 = keras.layers.Conv2D(16, kernel_size=3, activation='relu')(ip)
-    # layer1 = keras.layers.MaxPooling2D(pool_size=2)(layer1)
+    layer1 = keras.layers.Conv2D(16, kernel_size=(3,3), activation='relu')(ip)
+    # layer1 = keras.layers.MaxPooling2D(pool_size=(3,3))(layer1)
     # layer1 = keras.layers.Dropout(0.3)(layer1)
-    layer2 = keras.layers.Conv2D(32, kernel_size=3, activation='relu')(layer1)
-    layer2 = keras.layers.MaxPooling2D(pool_size=3)(layer2)
-    layer3 = keras.layers.Conv2D(64, kernel_size=3, activation='relu')(layer2)
-    layer3 = keras.layers.MaxPooling2D(pool_size=3)(layer3)
+    layer2 = keras.layers.Conv2D(32, kernel_size=(3,3), activation='relu')(layer1)
+    layer2 = keras.layers.MaxPooling2D(pool_size=(3,3))(layer2)
+    layer3 = keras.layers.Conv2D(64, kernel_size=(3,3), activation='relu')(layer2)
+    layer3 = keras.layers.MaxPooling2D(pool_size=(3,3))(layer3)
     layer3 = keras.layers.Flatten()(layer3)
     layer3 = keras.layers.Dropout(0.2)(layer3)
     output = keras.layers.Dense(128, activation='relu')(layer3)
@@ -187,6 +184,18 @@ def Load_Dataset():
   digit_indices = [np.where(test_labels == i)[0] for i in labels1]
   te_pairs, te_y = create_pairs(test_imgs, digit_indices, labels1)
 
+    # Display the pairs of each class
+#   fig, ax = plt.subplots(nrows=10, ncols=4,figsize=(40, 40))
+#   idx = 0
+#   for row in range(10):
+#       idx = random.randrange(0,len(tr_pairs),2)
+#       ax[row,0].imshow(tr_pairs[idx][0],cmap = 'gray')
+#       ax[row,1].imshow(tr_pairs[idx][1],cmap = 'gray')
+#       idx+=1
+#       ax[row,2].imshow(tr_pairs[idx][0],cmap = 'gray')
+#       ax[row,3].imshow(tr_pairs[idx][1],cmap = 'gray')
+#   plt.show()
+  
   # Reshape the input arrays to 4D (batch_size, rows, columns, channels)
   tr_pairs = tr_pairs.reshape(tr_pairs.shape[0], 2, img_rows, img_cols, 1)
   te_pairs = te_pairs.reshape(te_pairs.shape[0], 2, img_rows, img_cols, 1)
@@ -203,24 +212,7 @@ def Load_Dataset():
   test3_pairs, test3_y = create_pairs(Set2_imgs, digit_indices, labels2)
   test3_pairs = test3_pairs.reshape(test3_pairs.shape[0], 2, img_rows, img_cols, 1)
   
-
-  # Display the pairs of each class
-  fig, ax = plt.subplots(nrows=10, ncols=4,figsize=(40, 40))
-  idx = 0
-  for row in range(10):
-      idx = random.randrange(0,len(tr_pairs),2)
-      ax[row,0].imshow(tr_pairs[idx][0],cmap = 'gray')
-      ax[row,1].imshow(tr_pairs[idx][1],cmap = 'gray')
-      idx+=1
-      ax[row,2].imshow(tr_pairs[idx][0],cmap = 'gray')
-      ax[row,3].imshow(tr_pairs[idx][1],cmap = 'gray')
-  plt.show()
-
   
-  # Test the Contrastive Loss function with Keras and Numpy 
-  num_clasess = len(class_names)
-
-
   # Implement the CNN with both inputs
   base_network = Create_Base_Network(input_shape)
   base_network.summary()
@@ -232,6 +224,21 @@ def Load_Dataset():
   
   distance = keras.layers.Lambda(euclidean_distance, output_shape=eucl_dist_output_shape)([processed_a, processed_b])
   model = keras.Model([input_a, input_b], distance)
+  
+  # Test loss function
+  # 1. make more scenarios
+  
+  test_var_1 = tf.constant([0.1, 0.1, 0.1], shape=(3,3), dtype='float')
+  test_var_2 = tf.constant([1, 1, 1], shape=(3,3), dtype='float')
+  print(test_var_1.shape)
+  dis = euclidean_distance([test_var_1,test_var_2])
+  pos_result = contrastive_loss(0, dis)
+  neg_result = contrastive_loss(1, dis)
+  with tf.Session() as sess:
+    loss_pos_val = sess.run(pos_result)
+    loss_neg_val = sess.run(neg_result)
+    print('Contrastive loss of Positive Pair computed with tensorflow{:10.4f}'.format(loss_pos_val))
+    print('Contrastive loss of Negative Pair computed with tensorflow', loss_neg_val)
   
   # Display the structure of the CNN
   model.summary()
@@ -249,7 +256,7 @@ def Load_Dataset():
   # Train the model
   history = model.fit([train_pairs[:, 0], train_pairs[:, 1]], train_labels, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, validation_data=([valid_pairs[:, 0], valid_pairs[:, 1]], valid_labels))
   
-  # Plot training & validation accuracy values
+  #Plot training & validation accuracy values
   plt.plot(history.history['accuracy'])
   plt.plot(history.history['val_accuracy'])
   plt.title('Model accuracy')
@@ -258,7 +265,7 @@ def Load_Dataset():
   plt.legend(['Train', 'Test'], loc='upper left')
   plt.show()
   
-  # Plot training & validation loss values
+  # # Plot training & validation loss values
   plt.plot(history.history['loss'])
   plt.plot(history.history['val_loss'])
   plt.title('Model loss')

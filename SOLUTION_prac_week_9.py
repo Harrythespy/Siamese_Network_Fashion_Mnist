@@ -126,7 +126,6 @@ def ex3():
         anchor = y_pred[0]
         positive = y_pred[1]
         negative = y_pred[2]
-    
         print('anchor:', anchor)
 
         # distance between the anchor and the positive
