@@ -8,10 +8,15 @@ import random
 
 def euclidean_distance(vects):
   '''
-    This method return the distance between f(Pi) and f(Pj)
-    1/2(D(Pi, Pj)^2)
+    This method return the distance between f(Pi) and f(Pj).
+    Formula: (D(Pi, Pj)^2)
+    Argument:
+      vects -- a tensor which consists of two vectors (a pair of images).
+    Rrturns:
+      a vector of scalars (a single number).
   '''
   i, j = vects
+  # k.sum(x, axis, keepdims) will return the sum of x
   sum_square = k.sum(k.square(i - j), axis=1, keepdims=True)
   return k.sqrt(k.maximum(sum_square, k.epsilon()))
 
@@ -24,13 +29,12 @@ def eucl_dist_output_shape(shapes):
 def contrastive_loss(y_true, y_pred):
     '''
     Arguments:
-    y_true -- true labels, required when you define a loss in Keras.
-    y_pred -- python list containing three objects:
-            anchor -- the encodings for the anchor data
-            positive -- the encodings for the positive data (similar to anchor)
-            negative -- the encodings for the negative data (different from anchor)
+      y_true -- a numpy array that is given labels of the pairs.
+        0 = imgaes of the pair come from same class. 
+        1 = images of the pair come from different classes.
+      y_pred -- distance of a images pair by using Euclidean distance function.
     Returns:
-    loss -- real number, value of the loss
+      loss -- real number, value of the loss.
     '''
     margin = 0.8
     square_pred = k.square(y_pred)
@@ -42,16 +46,27 @@ def create_pairs(x, digit_indices, dataset):
   '''
     Positive and negative pair creation.
     Alternates between positive and negative pairs.
+    Arguments:
+      x -- a numpy array with images.
+      digit_indices -- the arrays of specific labels which consist of indices of images.
+      dataset -- the classes of specific labels.
+    Returns:
+      a combined numpy array of positive pairs as well as negative pair of images.
+      a numpy array which consists of the labels of pairs.
   '''
   pairs = []
   labels = []
+  # n = the minimum length of an array among all of the classes
   n = min([len(digit_indices[d]) for d in range(len(dataset))]) - 1
 
   for d in range(len(dataset)):
       for i in range(n):
           z1, z2 = digit_indices[d][i], digit_indices[d][i + 1]
+          # store two images that is in the same class as the positive pair.
           pairs += [[x[z1], x[z2]]]
+          # randomly generate number of the dataset as an axis 
           inc = random.randrange(1, len(dataset))
+          # the negative pair should not consists of the same images
           dn = (d + inc) % len(dataset)
           z1, z2 = digit_indices[d][i], digit_indices[dn][i]
           pairs += [[x[z1], x[z2]]]
@@ -61,23 +76,29 @@ def create_pairs(x, digit_indices, dataset):
 
 def Create_Base_Network(input_shape):
   '''
-    Create a sharable base network for two input datasets by using CNN
+    Create a sharable base network for two input datasets by using CNN.
+    Argument:
+      input_shape -- the shape of the input will pass into this method.
+      4D tensor with shape: (batch, rows, cols, channels)
+    Returns:
+      a built model with the input shape as well as the constructed layers.
+      shape = (batch, new_rows, new_cols, filters)
   '''
-  # # Express output as probability of image belonging to a particular class
-
   ip = keras.Input(shape=input_shape)
 
   # The 'relu' parameter is used to replace all negative values by zero, relu is abbreviated as Rectified Linear Unit
-  layer1 = keras.layers.Conv2D(16, kernel_size=(3,3), activation='relu')(ip)
-  # layer1 = keras.layers.MaxPooling2D(pool_size=(3,3))(layer1)
-  # layer1 = keras.layers.Dropout(0.3)(layer1)
-  layer2 = keras.layers.Conv2D(32, kernel_size=(3,3), activation='relu')(layer1)
-  layer2 = keras.layers.MaxPooling2D(pool_size=(3,3))(layer2)
-  layer3 = keras.layers.Conv2D(64, kernel_size=(3,3), activation='relu')(layer2)
-  layer3 = keras.layers.MaxPooling2D(pool_size=(3,3))(layer3)
+  # padding="same" results in padding the input such that the output has the same length as the original input.
+  layer1 = keras.layers.Conv2D(16, kernel_size=(3,3), padding='same', activation='relu')(ip)
+  # extract the features of the image
+  layer1 = keras.layers.MaxPooling2D(pool_size=(2,2))(layer1)
+  layer1 = keras.layers.Dropout(0.1)(layer1)
+  layer2 = keras.layers.Conv2D(32, kernel_size=(2,2), padding='same', activation='relu')(layer1)
+  layer2 = keras.layers.MaxPooling2D(pool_size=(2,2))(layer2)
+  layer3 = keras.layers.Conv2D(64, kernel_size=(2,2), padding='same', activation='relu')(layer2)
+  layer3 = keras.layers.MaxPooling2D(pool_size=(2,2))(layer3)
   layer3 = keras.layers.Flatten()(layer3)
   layer3 = keras.layers.Dense(128, activation='relu')(layer3)
-  layer3 = keras.layers.Dropout(0.1)(layer3)
+  layer3 = keras.layers.Dropout(0.2)(layer3)
   output = keras.layers.Dense(128, activation='relu')(layer3)
   return keras.Model(ip, output)
 
@@ -85,7 +106,15 @@ def Create_Base_Network(input_shape):
 def compute_accuracy(y_true, y_pred):
   '''
     Compute classification accuracy with a fixed threshold on distances.
+    Used during evaluation.
+    Arguments:
+      y_true -- a numpy array that is given labels of the pairs.
+      y_pred -- distance of a images pair by using Euclidean distance function.
+    Returns:
+      return a number represents the mean of distances of pairs.
   '''
+  # if the number of distance between two images is greater than 0.5 (the edge)
+  # then the pair is negative and replace the distance of the images as the label 1
   pred = y_pred.ravel() > 0.5
   return np.mean(pred == y_true)
 
@@ -93,12 +122,24 @@ def compute_accuracy(y_true, y_pred):
 def accuracy(y_true, y_pred):
   '''
     Compute classification accuracy with a fixed threshold on distances.
+    Used during training process.
+    Arguments:
+      y_true -- a numpy array that is given labels of the pairs.
+      y_pred -- distance of a images pair by using Euclidean distance function.
+    Returns:
+      return a number of accuracy that the pair labels compare to the distance of a pair.
   '''
+  # k.cast() casts a tensor to a different dtype and returns it.
+  # k.equal() Element-wise equality between two tensors. and returns a bool tensor.
   return k.mean(k.equal(y_true, k.cast(y_pred > 0.5, y_true.dtype)))
 
 def history_displayed(history, train_monitor, test_monitor):
   '''
     This function returns the historgram of the monitor (the taget).
+    Arguments:
+      hisotry -- the history of the training results.
+      train_monitor -- the target that will be used as the training in the plot. 
+      test_monitor -- the target that will be used as the testing  in the plot.
   '''
   plt.plot(history.history[train_monitor])
   plt.plot(history.history[test_monitor])
@@ -111,12 +152,17 @@ def history_displayed(history, train_monitor, test_monitor):
 def loss_testing_displayed(test_var_1, test_var_2):
   '''
     This function is used to evaluate the performance of the loss function.
+    Arguemts:
+      test_var_1 -- the vector which is indicated as the first input image.
+      test_var_2 -- the vector which is indicated as the second input image.
   '''
-  test_var_1 = tf.constant(test_var_1, shape=(3,3), dtype='float')
-  test_var_2 = tf.constant(test_var_2, shape=(3,3), dtype='float')
+  test_var_1 = tf.constant(test_var_1, shape=(3,3,3), dtype='float')
+  test_var_2 = tf.constant(test_var_2, shape=(3,3,3), dtype='float')
   # Implement the method of measuring distance between to images
+  # the images here are used as a pair
   dis = euclidean_distance([test_var_1,test_var_2])
   # return the number of distance
+  # provide the cusomted labels for the pair
   pos_result = contrastive_loss(0, dis)
   neg_result = contrastive_loss(1, dis)
   with tf.Session() as sess:
@@ -127,12 +173,10 @@ def loss_testing_displayed(test_var_1, test_var_2):
 
 def Load_Dataset():
   '''
-    1. Download the dataset from Fashion Mnist of keras datasets 
-    2. Gather the images and labels of both training and testing together
-    3. Distribute them with the given conditions (80%-20%) and remove unnecessary classes
-    4. Normalize and reshape dataset
-    5. Divide training dataset into train and validation for training model
-    6. Use three dataset for testing
+    This method is used to download the Fashion Mnist dataset from keras library,
+    and pre-processing the data in order to match the criteria of the assignment.
+    Returns:
+      the processed datasets which will be used in the following procedure.
   '''
   # Create new dataset in order to store different classes of images and labels
   Set1_imgs, Set1_labels = [], []
@@ -166,8 +210,50 @@ def Load_Dataset():
   Set2_labels = np.array(Set2_labels)
   
   return Set1_imgs, Set1_labels, Set2_imgs, Set2_labels
-  
+
+def images_displayed(class_names, images, labels):
+  '''
+    This method is to display the first 25 images.
+    Arguments:
+      class_names -- a set of classes.
+      images -- a set of images.
+      labels -- a set of labels.
+  '''
+  plt.figure(figsize=(10,10))
+  for i in range(25):
+    plt.subplot(5,5,i+1)
+    plt.xticks([])
+    plt.yticks([])
+    plt.grid(False)
+    plt.imshow(images[i], cmap=plt.cm.binary)
+    plt.xlabel(class_names[labels[i]])
+  plt.show()
+
+def paris_displayed(images_pair):
+  '''
+    Display the pairs of each class.
+    Arguments:
+      images_pair -- the pair of images which will be plotted.
+  '''
+  fig, ax = plt.subplots(nrows=10, ncols=4,figsize=(40, 40))
+  idx = 0
+  for row in range(10):
+      idx = random.randrange(0,len(images_pair),2)
+      ax[row,0].imshow(images_pair[idx][0],cmap = 'gray')
+      ax[row,1].imshow(images_pair[idx][1],cmap = 'gray')
+      idx+=1
+      ax[row,2].imshow(images_pair[idx][0],cmap = 'gray')
+      ax[row,3].imshow(images_pair[idx][1],cmap = 'gray')
+  plt.show()
+
 def accuracy_displayed(input_pairs, pairs_labels, set_name):
+  '''
+    This method displays the outcome of evaluating accuracy of each dataset.
+    Arguments:
+      input_pairs -- an array which consists of sets of pairs.
+      pairs_labels -- an array which consists of labels of paris.
+      set_name -- a string that represents the dataset. 
+  '''
   y_pred = model.predict(input_pairs)
   acc = compute_accuracy(pairs_labels, y_pred)
   print('* Accuracy on %s: %0.2f%%' % (set_name ,100 * acc))
@@ -189,17 +275,6 @@ if __name__ == '__main__':
   
   Set1_imgs, Set1_labels, Set2_imgs, Set2_labels = Load_Dataset()
   
-  ##### View the first 25  objects #####
-  # plt.figure(figsize=(10,10))
-  # for i in range(25):
-  #   plt.subplot(5,5,i+1)
-  #   plt.xticks([])
-  #   plt.yticks([])
-  #   plt.grid(False)
-  #   plt.imshow(train_imgs[i], cmap=plt.cm.binary)
-  #   plt.xlabel(class_names[train_labels[i]])
-  # plt.show()
-  
   # Distribute training and testing datasets with 80/20 percent
   train_imgs, test_imgs, train_labels, test_labels = train_test_split(Set1_imgs, Set1_labels, test_size=0.2, random_state=87)
   
@@ -217,23 +292,12 @@ if __name__ == '__main__':
   
   # create positive and negative pairs of training dataset
   digit_indices = [np.where(train_labels == i)[0] for i in labels1]
+  print(digit_indices)
   tr_pairs, tr_y = create_pairs(train_imgs, digit_indices, labels1)
 
   # create positive and negative pairs of testing dataset
   digit_indices = [np.where(test_labels == i)[0] for i in labels1]
   te_pairs, te_y = create_pairs(test_imgs, digit_indices, labels1)
-
-    # Display the pairs of each class
-#   fig, ax = plt.subplots(nrows=10, ncols=4,figsize=(40, 40))
-#   idx = 0
-#   for row in range(10):
-#       idx = random.randrange(0,len(tr_pairs),2)
-#       ax[row,0].imshow(tr_pairs[idx][0],cmap = 'gray')
-#       ax[row,1].imshow(tr_pairs[idx][1],cmap = 'gray')
-#       idx+=1
-#       ax[row,2].imshow(tr_pairs[idx][0],cmap = 'gray')
-#       ax[row,3].imshow(tr_pairs[idx][1],cmap = 'gray')
-#   plt.show()
   
   # Reshape the input arrays to 4D (batch_size, rows, columns, channels)
   tr_pairs = tr_pairs.reshape(tr_pairs.shape[0], 2, img_rows, img_cols, 1)
@@ -274,7 +338,8 @@ if __name__ == '__main__':
   test_var_2 = [1, 1, 1]
   loss_testing_displayed(test_var_1, test_var_2)
   
-
+  # Distribute training and testing datasets with 80/20 percent
+  train_pairs, valid_pairs, train_labels, valid_labels = train_test_split(tr_pairs, tr_y, train_size=0.8, random_state=87)
   
   # Display the structure of the CNN
   model.summary()
@@ -282,9 +347,6 @@ if __name__ == '__main__':
   # Compile the model
   rmsprop = keras.optimizers.RMSprop(learning_rate=1e-3, decay=1e-3/epochs)
   model.compile(loss=contrastive_loss, optimizer=rmsprop, metrics=[accuracy])
-
-  # Distribute training and testing datasets with 80/20 percent
-  train_pairs, valid_pairs, train_labels, valid_labels = train_test_split(tr_pairs, tr_y, train_size=0.8, random_state=87)
 
   # Using EarlyStopping method to stop testing when the validation of accuracy is not decreased.
   early_stop = keras.callbacks.EarlyStopping(monitor='val_accuracy', mode='auto', verbose=0, patience=10)
