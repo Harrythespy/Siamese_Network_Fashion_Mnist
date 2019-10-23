@@ -22,6 +22,9 @@ def euclidean_distance(vects):
 
 
 def eucl_dist_output_shape(shapes):
+    '''
+      Return a tuple as the output shape to the function.
+    '''
     shape1, shape2 = shapes
     return (shape1[0], 1)
 
@@ -174,9 +177,9 @@ def loss_testing_displayed(test_var_1, test_var_2):
 def Load_Dataset():
   '''
     This method is used to download the Fashion Mnist dataset from keras library,
-    and pre-processing the data in order to match the criteria of the assignment.
+    and classifying the data in order to match the criteria of the assignment.
     Returns:
-      the processed datasets which will be used in the following procedure.
+      the processed two datasets which will be used in the following procedure.
   '''
   # Create new dataset in order to store different classes of images and labels
   Set1_imgs, Set1_labels = [], []
@@ -188,7 +191,9 @@ def Load_Dataset():
   # Combine both images and labels of training data and testing data
   imgs = np.concatenate((train_imgs, test_imgs))
   labels = np.concatenate((train_labels, test_labels))
-   
+  print('Original intact dataset of images:', imgs.shape)
+  print('Original intact dataset of labels:', labels.shape)
+  
   # Create new dataset in order to store different classes of images and labels
   Set1_imgs, Set1_labels = [], []
   Set2_imgs, Set2_labels = [], []
@@ -208,6 +213,12 @@ def Load_Dataset():
   Set1_labels = np.array(Set1_labels)
   Set2_imgs = np.array(Set2_imgs)
   Set2_labels = np.array(Set2_labels)
+  
+  # Normalize data dimensions so that they are of approximately the same scale
+  Set1_imgs = Set1_imgs.astype('float32')
+  Set2_imgs = Set2_imgs.astype('float32')
+  Set1_imgs /= 255.
+  Set2_imgs /= 255.
   
   return Set1_imgs, Set1_labels, Set2_imgs, Set2_labels
 
@@ -229,7 +240,7 @@ def images_displayed(class_names, images, labels):
     plt.xlabel(class_names[labels[i]])
   plt.show()
 
-def paris_displayed(images_pair):
+def pairs_displayed(images_pair):
   '''
     Display the pairs of each class.
     Arguments:
@@ -273,26 +284,36 @@ if __name__ == '__main__':
   # Set 2 is the images with labels for classes "dress", "sneaker", "bag", "shirt"
   labels2 = [3, 6, 7, 8]
   
+  # Loaded the keras fashion mnist dataset
   Set1_imgs, Set1_labels, Set2_imgs, Set2_labels = Load_Dataset()
+  
+  # Verification of the classified datasets
+  print('Below is the first set of dataset with six labels')
+  images_displayed(class_names, Set1_imgs, Set1_labels)
+  
+  print('Below is the first set of dataset with six labels')
+  images_displayed(class_names, Set2_imgs, Set2_labels)
   
   # Distribute training and testing datasets with 80/20 percent
   train_imgs, test_imgs, train_labels, test_labels = train_test_split(Set1_imgs, Set1_labels, test_size=0.2, random_state=87)
   
-  # Normalize data dimensions so that they are of approximately the same scale
-  train_imgs = train_imgs.astype('float32')
-  test_imgs = test_imgs.astype('float32')
-  train_imgs /= 255.
-  test_imgs /= 255.
-
-  # the rows and columns of the images are at position 1 and 2
+  # verification of allocating the set1 with 80% and 20% as training and testing data
+  print('The shape of training dataset:', train_imgs.shape)
+  train_amount = train_imgs.size / (train_imgs.size + test_imgs.size)
+  print('The allocation of traning data:', 100 * train_amount, '%')
+  
+  print('The shape of testing dataset:', test_imgs.shape)
+  test_amount = test_imgs.size / (train_imgs.size + test_imgs.size)
+  print('The allocation of testing data:', 100 * test_amount, '%')
+  
+  # the rows and columnsof the images are at position 1 and 2
   img_rows, img_cols = train_imgs.shape[1:]
   input_shape = (img_rows, img_cols, 1)
-  batch_size = 256
-  epochs = 100
+  batch_size = 128
+  epochs = 120
   
   # create positive and negative pairs of training dataset
   digit_indices = [np.where(train_labels == i)[0] for i in labels1]
-  print(digit_indices)
   tr_pairs, tr_y = create_pairs(train_imgs, digit_indices, labels1)
 
   # create positive and negative pairs of testing dataset
@@ -303,18 +324,26 @@ if __name__ == '__main__':
   tr_pairs = tr_pairs.reshape(tr_pairs.shape[0], 2, img_rows, img_cols, 1)
   te_pairs = te_pairs.reshape(te_pairs.shape[0], 2, img_rows, img_cols, 1)
 
-  # Testing with pairs from the set of images with labels ["top", "trouser", "pullover", "coat", "sandal", "ankle boot"] union ["dress", "sneaker", "bag", "shirt"]
-  test2_imgs = np.concatenate((test_imgs, Set2_imgs))
-  test2_labels = np.concatenate((test_labels, Set2_labels))
-  digit_indices = [np.where(test2_labels == i)[0] for i in (labels1 + labels2)]
-  test2_pairs, test2_y = create_pairs(test2_imgs, digit_indices, (labels1 + labels2))
-  test2_pairs = test2_pairs.reshape(test2_pairs.shape[0], 2, img_rows, img_cols, 1)
-
   # Create positive and negative pairs of test 3
   digit_indices = [np.where(Set2_labels == i)[0] for i in labels2]
   test3_pairs, test3_y = create_pairs(Set2_imgs, digit_indices, labels2)
   test3_pairs = test3_pairs.reshape(test3_pairs.shape[0], 2, img_rows, img_cols, 1)
   
+  # Testing with pairs from the set of images with labels ["top", "trouser", "pullover", "coat", "sandal", "ankle boot"] union ["dress", "sneaker", "bag", "shirt"]
+  test2_imgs = np.concatenate((te_pairs, test3_pairs))
+  test2_labels = np.concatenate((te_y, test3_y))
+
+
+  
+  print('set 1')
+  print(te_pairs.shape, te_pairs.dtype)
+  print(te_y.shape, te_y.dtype)
+  print('set 2')
+  print(test2_pairs.shape, test2_pairs.dtype)
+  print(test2_y.shape, test2_y.dtype)
+  print('set 3')
+  print(test3_pairs.shape, test3_pairs.dtype)
+  print(test3_y.shape, test3_y.dtype)
   
   # Implement the CNN with both inputs
   base_network = Create_Base_Network(input_shape)
@@ -346,13 +375,14 @@ if __name__ == '__main__':
 
   # Compile the model
   rmsprop = keras.optimizers.RMSprop(learning_rate=1e-3, decay=1e-3/epochs)
+  # Configures the model for training.
   model.compile(loss=contrastive_loss, optimizer=rmsprop, metrics=[accuracy])
 
   # Using EarlyStopping method to stop testing when the validation of accuracy is not decreased.
   early_stop = keras.callbacks.EarlyStopping(monitor='val_accuracy', mode='auto', verbose=0, patience=10)
   callbacks_list = [early_stop]
   
-  # Train the model
+  # Trains the model for a fixed number of epochs (iterations on a dataset).
   history = model.fit([train_pairs[:, 0], train_pairs[:, 1]], train_labels, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, validation_data=([valid_pairs[:, 0], valid_pairs[:, 1]], valid_labels))
   
   #Plot training & validation accuracy values
