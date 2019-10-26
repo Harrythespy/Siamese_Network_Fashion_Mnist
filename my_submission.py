@@ -1,3 +1,12 @@
+'''
+  This program is created by Harry Shen
+  IFN680 Assignment 2 -- Siamese Neural Network
+  Group member:
+    1.Po-Ying (Harry) Shen  (n10298851)
+    2.Wang Hsuan            (n10105981)
+    3.Hung-Chieh Lai        (n10501266)
+'''
+
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
@@ -100,7 +109,7 @@ def Create_Base_Network(input_shape):
   layer3 = keras.layers.Conv2D(64, kernel_size=(2,2), padding='same', activation='relu')(layer2)
   layer3 = keras.layers.MaxPooling2D(pool_size=(2,2))(layer3)
   layer3 = keras.layers.Flatten()(layer3)
-  layer3 = keras.layers.Dense(128, activation='relu')(layer3)
+  layer3 = keras.layers.Dense(64, activation='relu')(layer3)
   layer3 = keras.layers.Dropout(0.2)(layer3)
   output = keras.layers.Dense(128, activation='relu')(layer3)
   return keras.Model(ip, output)
@@ -159,8 +168,8 @@ def loss_testing_displayed(test_var_1, test_var_2):
       test_var_1 -- the vector which is indicated as the first input image.
       test_var_2 -- the vector which is indicated as the second input image.
   '''
-  test_var_1 = tf.constant(test_var_1, shape=(3,3,3), dtype='float')
-  test_var_2 = tf.constant(test_var_2, shape=(3,3,3), dtype='float')
+  test_var_1 = tf.constant(test_var_1, shape=(3,3), dtype='float')
+  test_var_2 = tf.constant(test_var_2, shape=(3,3), dtype='float')
   # Implement the method of measuring distance between to images
   # the images here are used as a pair
   dis = euclidean_distance([test_var_1,test_var_2])
@@ -268,6 +277,8 @@ def accuracy_displayed(input_pairs, pairs_labels, set_name):
   y_pred = model.predict(input_pairs)
   acc = compute_accuracy(pairs_labels, y_pred)
   print('* Accuracy on %s: %0.2f%%' % (set_name ,100 * acc))
+  return acc
+  
 
   
   
@@ -309,8 +320,8 @@ if __name__ == '__main__':
   # the rows and columnsof the images are at position 1 and 2
   img_rows, img_cols = train_imgs.shape[1:]
   input_shape = (img_rows, img_cols, 1)
-  batch_size = 128
-  epochs = 120
+  batch_size = 256
+  epochs = 20
   
   # create positive and negative pairs of training dataset
   digit_indices = [np.where(train_labels == i)[0] for i in labels1]
@@ -330,9 +341,8 @@ if __name__ == '__main__':
   test3_pairs = test3_pairs.reshape(test3_pairs.shape[0], 2, img_rows, img_cols, 1)
   
   # Testing with pairs from the set of images with labels ["top", "trouser", "pullover", "coat", "sandal", "ankle boot"] union ["dress", "sneaker", "bag", "shirt"]
-  test2_imgs = np.concatenate((te_pairs, test3_pairs))
-  test2_labels = np.concatenate((te_y, test3_y))
-
+  test2_pairs = np.concatenate((te_pairs, test3_pairs))
+  test2_y = np.concatenate((te_y, test3_y))
 
   
   print('set 1')
@@ -345,58 +355,83 @@ if __name__ == '__main__':
   print(test3_pairs.shape, test3_pairs.dtype)
   print(test3_y.shape, test3_y.dtype)
   
-  # Implement the CNN with both inputs
-  base_network = Create_Base_Network(input_shape)
-  base_network.summary()
-  
-  # Generate two input shape with Keras.Input()
-  input_a = keras.Input(shape=input_shape)
-  input_b = keras.Input(shape=input_shape)
-  
-  # Put two inputs into the same weight of NN
-  processed_a = base_network(input_a)
-  processed_b = base_network(input_b)
-  
-  # Create the distance method by implementing Lambda()
-  distance = keras.layers.Lambda(euclidean_distance, output_shape=eucl_dist_output_shape)([processed_a, processed_b])
-  model = keras.Model([input_a, input_b], distance)
-  
   
   # Testing the accuracy of loss function
   test_var_1 = [0, 0, 0]
   test_var_2 = [1, 1, 1]
   loss_testing_displayed(test_var_1, test_var_2)
   
-  # Distribute training and testing datasets with 80/20 percent
-  train_pairs, valid_pairs, train_labels, valid_labels = train_test_split(tr_pairs, tr_y, train_size=0.8, random_state=87)
+  train_accs, test1_accs, test2_accs, test3_accs = [], [], [], []
   
-  # Display the structure of the CNN
-  model.summary()
+  for row in range(5):
+    print('Iteration {}'.format(row+1))
+    
+    # Implement the CNN with both inputs
+    base_network = Create_Base_Network(input_shape)
+    base_network.summary()
 
-  # Compile the model
-  rmsprop = keras.optimizers.RMSprop(learning_rate=1e-3, decay=1e-3/epochs)
-  # Configures the model for training.
-  model.compile(loss=contrastive_loss, optimizer=rmsprop, metrics=[accuracy])
+    # Generate two input shape with Keras.Input()
+    input_a = keras.Input(shape=input_shape)
+    input_b = keras.Input(shape=input_shape)
 
-  # Using EarlyStopping method to stop testing when the validation of accuracy is not decreased.
-  early_stop = keras.callbacks.EarlyStopping(monitor='val_accuracy', mode='auto', verbose=0, patience=10)
-  callbacks_list = [early_stop]
-  
-  # Trains the model for a fixed number of epochs (iterations on a dataset).
-  history = model.fit([train_pairs[:, 0], train_pairs[:, 1]], train_labels, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, validation_data=([valid_pairs[:, 0], valid_pairs[:, 1]], valid_labels))
-  
-  #Plot training & validation accuracy values
-  history_displayed(history, 'accuracy', 'val_accuracy')
-  
-  # Plot training & validation loss values
-  history_displayed(history, 'loss', 'val_loss')
-  
-  # Testing with pairs from the set of images with labels ["top", "trouser", "pullover", "coat", "sandal", "ankle boot"]
-  accuracy_displayed([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y, 'Training Dataset')
-  accuracy_displayed([te_pairs[:, 0], te_pairs[:, 1]], te_y, 'Test Dataset 1')
-  
-  ##### Evaluate the model of test 2 #####
-  accuracy_displayed([test2_pairs[:, 0], test2_pairs[:, 1]], test2_y, 'Test Dataset 2')
+    # Put two inputs into the same weight of NN
+    processed_a = base_network(input_a)
+    processed_b = base_network(input_b)
 
-  ##### Evaluate the model of test 3 #####
-  accuracy_displayed([test3_pairs[:, 0], test3_pairs[:, 1]], test3_y, 'Test Dataset 3')
+    # Create the distance method by implementing Lambda()
+    distance = keras.layers.Lambda(euclidean_distance, output_shape=eucl_dist_output_shape)([processed_a, processed_b])
+    
+    model = keras.Model([input_a, input_b], distance)
+    # Distribute training and testing datasets with 80/20 percent
+    train_pairs, valid_pairs, train_labels, valid_labels = train_test_split(tr_pairs, tr_y, train_size=0.8, random_state=87)
+
+    # Display the structure of the CNN
+    model.summary()
+
+    # Compile the model
+    rmsprop = keras.optimizers.RMSprop(learning_rate=1e-3, decay=1e-3/epochs)
+    # Configures the model for training.
+    model.compile(loss=contrastive_loss, optimizer=rmsprop, metrics=[accuracy])
+
+    # Using EarlyStopping method to stop testing when the validation of accuracy is not decreased.
+    early_stop = keras.callbacks.EarlyStopping(monitor='val_accuracy', mode='auto', verbose=0, patience=10)
+    callbacks_list = [early_stop]
+    
+    # Trains the model for a fixed number of epochs (iterations on a dataset).
+    history = model.fit([train_pairs[:, 0], train_pairs[:, 1]], train_labels, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, validation_data=([valid_pairs[:, 0], valid_pairs[:, 1]], valid_labels))
+
+    #Plot training & validation accuracy values
+    history_displayed(history, 'accuracy', 'val_accuracy')
+
+    # Plot training & validation loss values
+    history_displayed(history, 'loss', 'val_loss')
+
+    # Testing with pairs from the set of images with labels ["top", "trouser", "pullover", "coat", "sandal", "ankle boot"]
+    train_acc = accuracy_displayed([tr_pairs[:, 0], tr_pairs[:, 1]], tr_y, 'Training Dataset')
+    train_accs.append(train_acc)
+    
+    test1_acc = accuracy_displayed([te_pairs[:, 0], te_pairs[:, 1]], te_y, 'Test Dataset 1')
+    test1_accs.append(test1_acc)
+
+    ##### Evaluate the model of test 2 #####
+    test2_acc = accuracy_displayed([test2_pairs[:, 0], test2_pairs[:, 1]], test2_y, 'Test Dataset 2')
+    test2_accs.append(test2_acc)
+
+    ##### Evaluate the model of test 3 #####
+    test3_acc = accuracy_displayed([test3_pairs[:, 0], test3_pairs[:, 1]], test3_y, 'Test Dataset 3')
+    test3_accs.append(test3_acc)
+    
+    # Clear the configuration of the model after training 
+    k.clear_session()
+  
+  # Here is for generating a figure that records of the accuracies for 5 iteractions
+  x = np.arange(1,6)
+  plt.plot(x, train_accs, 'o-', label='train_acc')
+  plt.plot(x, test1_accs, 'v-', label='Acc of Set1')
+  plt.plot(x, test2_accs, 's-', label='Acc of Set1 ∪ Set2')
+  plt.plot(x, test3_accs, 'D-', label='Acc of Set2')  
+  plt.title('TESTING GENERALISATION CAPABILITY')
+  plt.ylabel('Accuracy')
+  plt.xlabel('Iteration')
+  plt.legend(loc='upper left')
+  plt.show()
