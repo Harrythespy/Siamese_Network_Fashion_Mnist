@@ -1,12 +1,3 @@
-'''
-  This program is created by Harry Shen
-  IFN680 Assignment 2 -- Siamese Neural Network
-  Group member:
-    1.Po-Ying (Harry) Shen  (n10298851)
-    2.Wang Hsuan            (n10105981)
-    3.Hung-Chieh Lai        (n10501266)
-'''
-
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
